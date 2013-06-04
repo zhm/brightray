@@ -12,7 +12,8 @@ InspectableWebContentsView* CreateInspectableContentsView(InspectableWebContents
 }
 
 InspectableWebContentsViewWin::InspectableWebContentsViewWin(InspectableWebContentsImpl* inspectable_web_contents)
-    : inspectable_web_contents_(inspectable_web_contents) {
+    : inspectable_web_contents_(inspectable_web_contents),
+      devtools_docked_(false) {
   Init(ui::GetHiddenWindow(), gfx::Rect());
   SetParent(inspectable_web_contents_->GetWebContents()->GetView()->GetNativeView(), hwnd());
 }
@@ -25,23 +26,56 @@ gfx::NativeView InspectableWebContentsViewWin::GetNativeView() const {
 }
 
 void InspectableWebContentsViewWin::ShowDevTools() {
+  auto devtools_hwnd = inspectable_web_contents_->devtools_web_contents()->GetView()->GetNativeView();
+  SetParent(devtools_hwnd, hwnd());
+  devtools_docked_ = true;
+  UpdateViews();
 }
 
 void InspectableWebContentsViewWin::CloseDevTools() {
+  devtools_docked_ = false;
 }
 
 bool InspectableWebContentsViewWin::SetDockSide(const std::string& side) {
   return false;
 }
 
+void InspectableWebContentsViewWin::UpdateViews() {
+  RECT win_rect;
+  GetClientRect(hwnd(), &win_rect);
+  gfx::Rect rect(win_rect);
+
+  gfx::Rect contents_rect = rect;
+  gfx::Rect devtools_rect = rect;
+
+  if (devtools_docked_) {
+    contents_rect.set_height(rect.height() * 2 / 3);
+
+    devtools_rect.set_height(rect.height() - contents_rect.height());
+    devtools_rect.set_y(contents_rect.bottom());
+  }
+
+  auto devtools = inspectable_web_contents_->devtools_web_contents();
+  auto handle = BeginDeferWindowPos(devtools ? 2 : 1);
+  handle = DeferWindowPos(handle, inspectable_web_contents_->GetWebContents()->GetView()->GetNativeView(),
+                          nullptr,
+                          contents_rect.x(), contents_rect.y(), contents_rect.width(), contents_rect.height(), SWP_NOZORDER);
+  if (devtools) {
+    if (devtools_docked_) {
+      handle = DeferWindowPos(handle, devtools->GetView()->GetNativeView(),
+                              nullptr,
+                              devtools_rect.x(), devtools_rect.y(), devtools_rect.width(), devtools_rect.height(), SWP_NOZORDER | SWP_SHOWWINDOW);
+    } else {
+      handle = DeferWindowPos(handle, devtools->GetView()->GetNativeView(),
+                              nullptr,
+                              0, 0, 0, 0, SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_HIDEWINDOW);
+    }
+  }
+  EndDeferWindowPos(handle);
+}
+
 LRESULT InspectableWebContentsViewWin::OnSize(UINT message, WPARAM, LPARAM, BOOL& handled) {
-  RECT rect;
-  GetClientRect(hwnd(), &rect);
-  SetWindowPos(inspectable_web_contents_->GetWebContents()->GetView()->GetNativeView(),
-               nullptr,
-               rect.left, rect.top,
-               rect.right - rect.left, rect.bottom - rect.top,
-               SWP_NOZORDER);
+  UpdateViews();
   return 0;
 }
 

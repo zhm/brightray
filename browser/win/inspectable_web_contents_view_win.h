@@ -18,7 +18,7 @@ public:
   ~InspectableWebContentsViewWin();
 
   BEGIN_MSG_MAP_EX(InspectableWebContentsViewWin)
-    MESSAGE_HANDLER(WM_SIZE, OnSize)
+    MESSAGE_HANDLER(WM_WINDOWPOSCHANGING, OnSize)
   END_MSG_MAP()
 
   virtual gfx::NativeView GetNativeView() const OVERRIDE;
@@ -29,10 +29,13 @@ public:
   InspectableWebContentsImpl* inspectable_web_contents() { return inspectable_web_contents_; }
 
 private:
+  void UpdateViews();
+
   LRESULT OnSize(UINT message, WPARAM, LPARAM, BOOL& handled);
 
   // Owns us.
   InspectableWebContentsImpl* inspectable_web_contents_;
+  bool devtools_docked_;
 
   DISALLOW_COPY_AND_ASSIGN(InspectableWebContentsViewWin);
 };
