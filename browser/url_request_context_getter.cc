@@ -71,18 +71,19 @@ net::URLRequestContext* URLRequestContextGetter::GetURLRequestContext() {
     url_request_context_->set_network_delegate(network_delegate_.get());
     storage_.reset(
         new net::URLRequestContextStorage(url_request_context_.get()));
-    storage_->set_cookie_store(content::CreatePersistentCookieStore(
-        base_path_.Append(FILE_PATH_LITERAL("Cookies")),
-        false,
-        nullptr,
-        nullptr,
-        nullptr));
+    storage_->set_cookie_store(content::CreateCookieStore(content::CookieStoreConfig()));
+    /* storage_->set_cookie_store(content::CreatePersistentCookieStore( */
+    /*     base_path_.Append(FILE_PATH_LITERAL("Cookies")), */
+    /*     false, */
+    /*     nullptr, */
+    /*     nullptr, */
+    /*     nullptr)); */
     storage_->set_server_bound_cert_service(new net::ServerBoundCertService(
         new net::DefaultServerBoundCertStore(NULL),
         base::WorkerPool::GetTaskRunner(true)));
     storage_->set_http_user_agent_settings(
         new net::StaticHttpUserAgentSettings(
-            "en-us,en", EmptyString()));
+            "en-us,en", base::EmptyString()));
 
     scoped_ptr<net::HostResolver> host_resolver(
         net::HostResolver::CreateDefaultResolver(NULL));
@@ -154,9 +155,9 @@ net::URLRequestContext* URLRequestContextGetter::GetURLRequestContext() {
     }
     protocol_handlers_.clear();
     job_factory->SetProtocolHandler(
-        chrome::kDataScheme, new net::DataProtocolHandler);
+        content::kDataScheme, new net::DataProtocolHandler);
     job_factory->SetProtocolHandler(
-        chrome::kFileScheme,
+        content::kFileScheme,
         new net::FileProtocolHandler(
             content::BrowserThread::GetBlockingPool()->
                 GetTaskRunnerWithShutdownBehavior(

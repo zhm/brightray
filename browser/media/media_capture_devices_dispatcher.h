@@ -6,6 +6,7 @@
 #define BRIGHTRAY_BROWSER_MEDIA_MEDIA_CAPTURE_DEVICES_DISPATCHER_H_
 
 #include "base/callback.h"
+#include "base/observer_list.h"
 #include "base/memory/scoped_ptr.h"
 #include "base/memory/singleton.h"
 #include "content/public/browser/media_observer.h"
@@ -18,6 +19,32 @@ namespace brightray {
 // layer.
 class MediaCaptureDevicesDispatcher : public content::MediaObserver {
  public:
+  class Observer {
+   public:
+    // Handle an information update consisting of a up-to-date audio capture
+    // device lists. This happens when a microphone is plugged in or unplugged.
+    virtual void OnUpdateAudioDevices(
+        const content::MediaStreamDevices& devices) {}
+
+    // Handle an information update consisting of a up-to-date video capture
+    // device lists. This happens when a camera is plugged in or unplugged.
+    virtual void OnUpdateVideoDevices(
+        const content::MediaStreamDevices& devices) {}
+
+    // Handle an information update related to a media stream request.
+    virtual void OnRequestUpdate(
+        int render_process_id,
+        int render_view_id,
+        const content::MediaStreamDevice& device,
+        const content::MediaRequestState state) {}
+
+    // Handle an information update that a new stream is being created.
+    virtual void OnCreatingAudioStream(int render_process_id,
+                                       int render_frame_id) {}
+
+    virtual ~Observer() {}
+  };
+
   static MediaCaptureDevicesDispatcher* GetInstance();
 
   // Methods for observers. Called on UI thread.
@@ -51,23 +78,27 @@ class MediaCaptureDevicesDispatcher : public content::MediaObserver {
   void DisableDeviceEnumerationForTesting();
 
   // Overridden from content::MediaObserver:
-  virtual void OnAudioCaptureDevicesChanged(
-      const content::MediaStreamDevices& devices) OVERRIDE;
-  virtual void OnVideoCaptureDevicesChanged(
-      const content::MediaStreamDevices& devices) OVERRIDE;
+  virtual void OnAudioCaptureDevicesChanged() OVERRIDE;
+  virtual void OnVideoCaptureDevicesChanged() OVERRIDE;
   virtual void OnMediaRequestStateChanged(
       int render_process_id,
       int render_view_id,
       int page_request_id,
+      const GURL& security_origin,
       const content::MediaStreamDevice& device,
       content::MediaRequestState state) OVERRIDE;
-  virtual void OnAudioStreamPlayingChanged(
+
+  virtual void OnAudioStreamPlaying(
       int render_process_id,
-      int render_view_id,
+      int render_frame_id,
       int stream_id,
-      bool is_playing,
-      float power_dBFS,
-      bool clipped) OVERRIDE;
+      const ReadPowerAndClipCallback& power_read_callback) OVERRIDE;
+
+  virtual void OnAudioStreamStopped(
+      int render_process_id,
+      int render_frame_id,
+      int stream_id) OVERRIDE;
+
   virtual void OnCreatingAudioStream(int render_process_id,
                                      int render_view_id) OVERRIDE;
 
@@ -78,14 +109,25 @@ class MediaCaptureDevicesDispatcher : public content::MediaObserver {
   virtual ~MediaCaptureDevicesDispatcher();
 
   // Called by the MediaObserver() functions, executed on UI thread.
-  void UpdateAudioDevicesOnUIThread(const content::MediaStreamDevices& devices);
-  void UpdateVideoDevicesOnUIThread(const content::MediaStreamDevices& devices);
+  void NotifyAudioDevicesChangedOnUIThread();
+  void NotifyVideoDevicesChangedOnUIThread();
+
+  void UpdateMediaRequestStateOnUIThread(
+    int render_process_id,
+    int render_view_id,
+    int page_request_id,
+    const GURL& security_origin,
+    const content::MediaStreamDevice& device,
+    content::MediaRequestState state);
 
   // A list of cached audio capture devices.
   content::MediaStreamDevices audio_devices_;
 
   // A list of cached video capture devices.
   content::MediaStreamDevices video_devices_;
+
+  // A list of observers for the device update notifications.
+  ObserverList<Observer> observers_;
 
   // Flag to indicate if device enumeration has been done/doing.
   // Only accessed on UI thread.

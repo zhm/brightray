@@ -16,7 +16,7 @@
 #include "base/prefs/json_pref_store.h"
 #include "base/prefs/pref_registry_simple.h"
 #include "base/prefs/pref_service.h"
-#include "base/prefs/pref_service_builder.h"
+#include "base/prefs/pref_service_factory.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/resource_context.h"
 #include "content/public/browser/storage_partition.h"
@@ -76,16 +76,22 @@ void BrowserContext::Initialize() {
   path_ = path.Append(base::FilePath::FromUTF8Unsafe(GetApplicationName()));
 
   auto prefs_path = GetPath().Append(FILE_PATH_LITERAL("Preferences"));
-  PrefServiceBuilder builder;
-  builder.WithUserFilePrefs(prefs_path,
-      JsonPrefStore::GetTaskRunnerForFile(
-          prefs_path, content::BrowserThread::GetBlockingPool()));
+
+  auto runner = JsonPrefStore::GetTaskRunnerForFile(prefs_path,
+      content::BrowserThread::GetBlockingPool());
+
+  base::PrefServiceFactory factory;
+
+  factory.SetUserPrefsFile(prefs_path, runner);
 
   auto registry = make_scoped_refptr(new PrefRegistrySimple);
+
   RegisterInternalPrefs(registry);
   RegisterPrefs(registry);
 
-  prefs_.reset(builder.Create(registry));
+  scoped_ptr<PrefService> prefs = factory.Create(registry);
+
+  prefs_.swap(prefs);
 }
 
 BrowserContext::~BrowserContext() {
@@ -153,12 +159,35 @@ net::URLRequestContextGetter*
   return GetRequestContext();
 }
 
-void BrowserContext::RequestMIDISysExPermission(
+void BrowserContext::RequestMidiSysExPermission(
+  int render_process_id,
+  int render_view_id,
+  int bridge_id,
+  const GURL& requesting_frame,
+  bool user_gesture,
+  const MidiSysExPermissionCallback& callback) {
+  callback.Run(false);
+}
+
+void BrowserContext::CancelMidiSysExPermissionRequest(
     int render_process_id,
     int render_view_id,
+    int bridge_id,
+    const GURL& requesting_frame) {
+}
+
+void BrowserContext::RequestProtectedMediaIdentifierPermission(
+    int render_process_id,
+    int render_view_id,
+    int bridge_id,
+    int group_id,
     const GURL& requesting_frame,
-    const MIDISysExPermissionCallback& callback) {
+    const ProtectedMediaIdentifierPermissionCallback& callback) {
   callback.Run(false);
+}
+
+void BrowserContext::CancelProtectedMediaIdentifierPermissionRequests(
+    int group_id) {
 }
 
 content::ResourceContext* BrowserContext::GetResourceContext() {
